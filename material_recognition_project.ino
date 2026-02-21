@@ -47,18 +47,20 @@ int decision(unsigned short infrared, unsigned short optical, bool inductive) {
 
   // se induttivo è vero:
 
-  // se ottico <= 50 & infrarosso < 40 -> è carta
+  // se ottico <= 100 & infrarosso < 60 -> è carta
 
-  // se infrarosso in [40, 200) & ottico in (80, 210] -> è plastica
+  // se infrarosso in [40, 200) ***& ottico in (40, 210]*** -> è plastica
 
-  // se ottico in (210, 850) & infrarosso > 500 -> è vetro
+  // se ottico in (100, 850) & infrarosso > 500 -> è vetro
 
   if(optical > 850) return 0;
   else if(!inductive) return 1;
-  else if(optical <= 50 && infrared < 40) return 2;
-  else if(optical > 80 && optical <= 230 && infrared >= 40 && infrared <= 200) return 3;
-  else if(optical > 230 && optical < 850 && infrared > 500) return 4;
+  else if(optical <= 100 && infrared < 60) return 2;
+  else if(infrared >= 40 && infrared <= 200) return 3;
+  else if(optical > 100 && optical < 850 && infrared > 500) return 4;
   else return 5;
+
+  // ambiguità carta - plastica
 }
 
 void setup() {
@@ -78,7 +80,7 @@ void loop() {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("inserire oggetto");
-    delay(10000);
+    delay(5000);
 
     ir_sig = analogRead(IR);
     delay(100);
@@ -105,5 +107,5 @@ void loop() {
     Serial.print(ind_sig);
     Serial.print("\tclass: ");
     Serial.println(materials[dec]);
-    delay(10000);
+    delay(5000);
 }
