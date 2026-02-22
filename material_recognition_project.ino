@@ -1,12 +1,12 @@
 #define IND 2
 #define PROX 3
 #define LASER 7
-#define LDR A7
 #define IR A0
+#define LDR A7
+
 #define LCD_ADDR 0x27
 
 #include <LiquidCrystal_I2C.h>
-
 
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 
@@ -30,6 +30,7 @@ void waiting() {
   lcd.print("presentare");
   lcd.setCursor(0, 1);
   lcd.print("oggetto");
+  // sostituire col numero di utilizzi in scroll screen
   while(digitalRead(PROX) == HIGH);
 }
 
@@ -41,26 +42,15 @@ void LCD_init() {
 }
 
 int decision(unsigned short infrared, unsigned short optical, bool inductive) {
-  // se ottico > 850 -> non c'è nulla
-
-  // se induttivo è falso -> è metallo
-
-  // se induttivo è vero:
-
-  // se ottico <= 100 & infrarosso < 60 -> è carta
-
-  // se infrarosso in [40, 200) ***& ottico in (40, 210]*** -> è plastica
-
-  // se ottico in (100, 850) & infrarosso > 500 -> è vetro
-
   if(optical > 850) return 0;
-  else if(!inductive) return 1;
+  usages++;
+  if(!inductive) return 1;
   else if(optical <= 100 && infrared < 60) return 2;
   else if(infrared >= 40 && infrared <= 200) return 3;
   else if(optical > 100 && optical < 850 && infrared > 500) return 4;
   else return 5;
 
-  // ambiguità carta - plastica
+  // ambiguità carta - plastica se si utilizza il sensore ottico per esaminare la plastica
 }
 
 void setup() {
@@ -70,10 +60,6 @@ void setup() {
   Serial.begin(9600);
   LCD_init();
 }
-
-// void loop() {
-//   digitalWrite(LASER, HIGH);
-// }
 
 void loop() {
     waiting();

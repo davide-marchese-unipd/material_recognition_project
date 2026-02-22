@@ -30,8 +30,8 @@ se induttivo è falso -> è metallo
 
 se induttivo è vero:
 
-se ottico <= 50 & infrarosso < 40 -> è carta
+se ottico <= 100 & infrarosso < 60 -> è carta
 
-se infrarosso in [40, 200) & ottico in (80, 210] -> è plastica
+se infrarosso in [40, 200] ***& ottico in (40, 210]*** -> è plastica
 
-se ottico in (210, 850) & infrarosso > 500 -> è vetro
+se ottico in (100, 850) & infrarosso > 500 -> è vetro
