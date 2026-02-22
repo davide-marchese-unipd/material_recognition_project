@@ -33,14 +33,36 @@ unsigned short readAverage(int pin) {
   return sum / 20;
 }
 
-void waiting() {
+void print_msg(char str[][17]) {
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("presentare");
+  lcd.print(str[0]);
   lcd.setCursor(0, 1);
-  lcd.print("oggetto");
-  // sostituire col numero di utilizzi in scroll screen
-  while(digitalRead(PROX) == HIGH);
+  lcd.print(str[1]);
+}
+
+
+
+void waiting() {
+
+  // aggiungere il numero di riconoscimenti per categoria
+
+  long long last_time = millis();
+  bool swtch = false;
+  char msg1[][17] = {"avvicina la mano", "per iniziare"};
+  char msg2[][17] = {"utilizzi:", ""};
+  char msg3[][17]= {"", ""};
+  char buffer[17] = "";
+  itoa(usages, msg2[1], 17);
+  print_msg(msg1);
+  while(digitalRead(PROX) == HIGH) {
+    if(millis() - last_time >= 5000) {
+      if(swtch) print_msg(msg1);
+      else print_msg(msg2);
+      swtch = !swtch;
+      last_time = millis();
+    }
+  }
 }
 
 void LCD_init() {
@@ -55,11 +77,9 @@ int decision(unsigned short infrared, unsigned short optical, bool inductive) {
   usages++;
   if(!inductive) return 1;
   else if(optical <= 100 && infrared < 60) return 2;
-  else if(infrared >= 40 && infrared <= 200) return 3;
-  else if(optical > 100 && optical < 850 && infrared > 500) return 4;
+  else if(infrared >= 40 && infrared <= 400) return 3;
+  else if(optical > 100) return 4;
   else return 5;
-
-  // ambiguità carta - plastica se si utilizza il sensore ottico per esaminare la plastica
 }
 
 void setup() {
