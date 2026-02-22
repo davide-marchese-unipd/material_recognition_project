@@ -24,6 +24,15 @@ char materials[][11] = {
   "indefinito"
 };
 
+unsigned short readAverage(int pin) {
+  int sum = 0;
+  for(int i=0; i<20; i++) {
+    sum += analogRead(pin);
+    delay(2);
+  }
+  return sum / 20;
+}
+
 void waiting() {
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -68,11 +77,11 @@ void loop() {
     lcd.print("inserire oggetto");
     delay(5000);
 
-    ir_sig = analogRead(IR);
+    ir_sig = readAverage(IR);
     delay(100);
     digitalWrite(LASER, HIGH);
     delay(1000);
-    opt_sig = analogRead(LDR);
+    opt_sig = readAverage(LDR);
     delay(100);
     digitalWrite(LASER, LOW);
     ind_sig = digitalRead(IND);
