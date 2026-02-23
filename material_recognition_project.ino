@@ -93,12 +93,12 @@ void LCD_init() {
 
 // da riprogettare secondo un criterio che tenga conto di punteggi assegnati ai materiali
 int response_analysis(unsigned short infrared, unsigned short optical, bool inductive) {
-  if(optical > 850) return 0;
+  if(optical > 850) return 0;     // <- sostituire il valore fissato con il valore massimo del segnale ottico meno una certa percentuale di esso
   usages++;
   if(!inductive) return 1;
   else if(optical <= 100 && infrared < 60) return 2;
-  else if(infrared >= 40 && infrared <= 400) return 3;
-  else if(optical > 100) return 4;
+  else if(infrared >= 40 && infrared <= 400) return 3;      // questa e la precedente decisione vanno accorpate in un classificatore avanzato apposito per carta e plastica, dopo la decisione per il vetro
+  else if(optical > 100) return 4;                          // va messa come terza decisione, sotto a quella che riconosce i metalli
   else return 5;
 }
 
