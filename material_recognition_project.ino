@@ -11,8 +11,13 @@
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 
 unsigned short opt_sig = 0;
+unsigned short min_opt_sig = 0;
+unsigned short max_opt_sig = 0;
 unsigned short ir_sig = 0;
+unsigned short min_ir_sig = 0;
+unsigned short max_ir_sig = 0;
 bool ind_sig = 0;
+
 
 unsigned int usages = 0;
 char materials[][11] = {
@@ -41,7 +46,17 @@ void print_msg(char str[][17]) {
   lcd.print(str[1]);
 }
 
-
+void initialization() {
+  /*
+    chiudi vano
+  */
+  max_ir_sig = readAverage(IR); // <- porre attenzione al fatto che il valore per il vetro risulterà non normalizzato dato che sarà superiore al valore massimo
+  min_opt_sig = readAverage(LDR);
+  digitalWrite(LASER, HIGH);
+  delay(100);
+  max_opt_sig = readAverage(LDR);
+  digitalWrite(LASER, LOW);
+}
 
 void waiting() {
 
@@ -65,6 +80,10 @@ void waiting() {
   }
 }
 
+unsigned short normalize(unsigned short sig, unsigned short min_sig, unsigned short max_sig) {
+  return (sig - min_sig) / (max_sig - min_sig);
+}
+
 void LCD_init() {
   lcd.begin();
   lcd.backlight();
@@ -72,7 +91,8 @@ void LCD_init() {
   lcd.setCursor(0, 0);
 }
 
-int decision(unsigned short infrared, unsigned short optical, bool inductive) {
+// da riprogettare secondo un criterio che tenga conto di punteggi assegnati ai materiali
+int response_analysis(unsigned short infrared, unsigned short optical, bool inductive) {
   if(optical > 850) return 0;
   usages++;
   if(!inductive) return 1;
@@ -91,6 +111,7 @@ void setup() {
 }
 
 void loop() {
+    initialization();
     waiting();
     lcd.clear();
     lcd.setCursor(0, 0);
@@ -106,7 +127,7 @@ void loop() {
     digitalWrite(LASER, LOW);
     ind_sig = digitalRead(IND);
 
-    int dec = decision(ir_sig, opt_sig, ind_sig);
+    int dec = response_analysis(ir_sig, opt_sig, ind_sig);
 
     lcd.clear();
     lcd.setCursor(0, 0);
@@ -122,5 +143,10 @@ void loop() {
     Serial.print(ind_sig);
     Serial.print("\tclass: ");
     Serial.println(materials[dec]);
+
+    /*
+      muovi pannelli
+    */
+
     delay(5000);
 }
