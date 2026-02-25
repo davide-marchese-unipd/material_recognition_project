@@ -20,7 +20,7 @@ bool ind_sig = 0;
 
 
 unsigned int usages = 0;
-char materials[][11] = {
+char materials[][17] = {
   "nulla",
   "metallo",
   "carta",
@@ -50,7 +50,7 @@ void initialization() {
   /*
     chiudi vano
   */
-  max_ir_sig = readAverage(IR); // <- porre attenzione al fatto che il valore per il vetro risulterà non normalizzato dato che sarà superiore al valore massimo
+  max_ir_sig = readAverage(IR); // <- porre attenzione al fatto che il valore per il vetro risulterà non normalizzato dato che sarà superiore al valore massimo teorico
   min_opt_sig = readAverage(LDR);
   digitalWrite(LASER, HIGH);
   delay(100);
@@ -60,7 +60,7 @@ void initialization() {
 
 void waiting() {
 
-  // aggiungere il numero di riconoscimenti per categoria
+  // aggiungere il numero di riconoscimenti per categoria tra i messaggi che scorrono
 
   long long last_time = millis();
   bool swtch = false;
@@ -68,7 +68,7 @@ void waiting() {
   char msg2[][17] = {"utilizzi:", ""};
   char msg3[][17]= {"", ""};
   char buffer[17] = "";
-  itoa(usages, msg2[1], 17);
+  itoa(usages, msg2[1], 10);
   print_msg(msg1);
   while(digitalRead(PROX) == HIGH) {
     if(millis() - last_time >= 5000) {
@@ -93,12 +93,14 @@ void LCD_init() {
 
 // da riprogettare secondo un criterio che tenga conto di punteggi assegnati ai materiali
 int response_analysis(unsigned short infrared, unsigned short optical, bool inductive) {
-  if(optical > 850) return 0;     // <- sostituire il valore fissato con il valore massimo del segnale ottico meno una certa percentuale di esso
+  if(optical > 0.95 * max_opt_sig) return 0;     // <- sostituire il valore fissato con il valore massimo del segnale ottico meno una certa percentuale di esso
   usages++;
   if(!inductive) return 1;
-  else if(optical <= 100 && infrared < 60) return 2;
-  else if(infrared >= 40 && infrared <= 400) return 3;      // questa e la precedente decisione vanno accorpate in un classificatore avanzato apposito per carta e plastica, dopo la decisione per il vetro
-  else if(optical > 100) return 4;                          // va messa come terza decisione, sotto a quella che riconosce i metalli
+
+  else if(infrared > 400) return 4;
+  // devo provare a vedere se più è opaca la plastica, meno filtra luce e di conseguenza meno ritornano gli infrarossi, così posso vedere se scambiare l'ordine tra carta e plastica
+  else if(optical <= 100 && infrared < 90) return 2;        // soglie cambiate
+  else if(infrared > 60 && infrared <= 400) return 3;      // questa e la precedente decisione vanno accorpate in un classificatore avanzato apposito per carta e plastica, dopo la decisione per il vetro
   else return 5;
 }
 
@@ -107,46 +109,53 @@ void setup() {
   pinMode(IND, INPUT);
   pinMode(PROX, INPUT);
   Serial.begin(9600);
+  initialization();
+  Serial.println(min_opt_sig);
+  Serial.println(max_opt_sig);
+  Serial.println(min_ir_sig);
+  Serial.println(max_ir_sig);
   LCD_init();
 }
 
 void loop() {
-    initialization();
-    waiting();
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("inserire oggetto");
-    delay(5000);
+  waiting();
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("inserire oggetto");
+  delay(5000);
 
-    ir_sig = readAverage(IR);
-    delay(100);
-    digitalWrite(LASER, HIGH);
-    delay(1000);
-    opt_sig = readAverage(LDR);
-    delay(100);
-    digitalWrite(LASER, LOW);
-    ind_sig = digitalRead(IND);
+  ir_sig = readAverage(IR);
+  delay(100);
+  digitalWrite(LASER, HIGH);
+  delay(1000);
+  opt_sig = readAverage(LDR);
+  delay(100);
+  digitalWrite(LASER, LOW);
+  ind_sig = digitalRead(IND);
 
-    int dec = response_analysis(ir_sig, opt_sig, ind_sig);
+  int dec = response_analysis(ir_sig, opt_sig, ind_sig);
 
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("riconosciuto:");
-    lcd.setCursor(0, 1);
-    lcd.print(materials[dec]);
+  // char msg[17] = {"riconosciuto:", *materials[dec]};
+  // print_msg(msg);
 
-    Serial.print("LDR: ");
-    Serial.print(opt_sig);
-    Serial.print("\tIR: ");
-    Serial.print(ir_sig);
-    Serial.print("\tIND: ");
-    Serial.print(ind_sig);
-    Serial.print("\tclass: ");
-    Serial.println(materials[dec]);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("riconosciuto:");
+  lcd.setCursor(0, 1);
+  lcd.print(materials[dec]);
 
-    /*
-      muovi pannelli
-    */
+  Serial.print("LDR: ");
+  Serial.print(opt_sig);
+  Serial.print("\tIR: ");
+  Serial.print(ir_sig);
+  Serial.print("\tIND: ");
+  Serial.print(ind_sig);
+  Serial.print("\tclass: ");
+  Serial.println(materials[dec]);
 
-    delay(5000);
+  /*
+    muovi pannelli
+  */
+
+  delay(5000);
 }
