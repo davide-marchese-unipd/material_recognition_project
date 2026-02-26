@@ -29,6 +29,20 @@ char materials[][17] = {
   "indefinito"
 };
 
+//si usa per la normalizzazione nello score (formule in foto telefono)
+struct material
+{
+    unsigned short optical_mean;
+    unsigned short optical_range;
+    unsigned short ir_mean;
+    unsigned short ir_range;
+    float score;
+};
+
+material paper = {38, 49, 66, 9, 0.0};
+material plastic = {564, 573, 163, 173, 0.0};
+material glass = {406, 504, 752, 232, 0.0};
+
 unsigned short readAverage(int pin) {
   int sum = 0;
   for(int i=0; i<20; i++) {
@@ -51,6 +65,8 @@ void initialization() {
     chiudi vano
   */
   max_ir_sig = readAverage(IR); // <- porre attenzione al fatto che il valore per il vetro risulterà non normalizzato dato che sarà superiore al valore massimo teorico
+  digitalWrite(LASER, LOW);
+  delay(100);
   min_opt_sig = readAverage(LDR);
   digitalWrite(LASER, HIGH);
   delay(100);
@@ -91,17 +107,34 @@ void LCD_init() {
   lcd.setCursor(0, 0);
 }
 
-// da riprogettare secondo un criterio che tenga conto di punteggi assegnati ai materiali
-int response_analysis(unsigned short infrared, unsigned short optical, bool inductive) {
-  if(optical > 0.95 * max_opt_sig) return 0;     // <- sostituire il valore fissato con il valore massimo del segnale ottico meno una certa percentuale di esso
-  usages++;
-  if(!inductive) return 1;
 
-  else if(infrared > 400) return 4;
-  // devo provare a vedere se più è opaca la plastica, meno filtra luce e di conseguenza meno ritornano gli infrarossi, così posso vedere se scambiare l'ordine tra carta e plastica
-  else if(optical <= 100 && infrared < 90) return 2;        // soglie cambiate
-  else if(infrared > 60 && infrared <= 400) return 3;      // questa e la precedente decisione vanno accorpate in un classificatore avanzato apposito per carta e plastica, dopo la decisione per il vetro
-  else return 5;
+// int response_analysis(unsigned short infrared, unsigned short optical, bool inductive) {
+//   if(optical > 0.95 * max_opt_sig) return 0;
+//   usages++;
+//   if(!inductive) return 1;
+
+//   else if(infrared > 0.7 * max_ir_sig) return 4;
+//   else if(optical <= 100 && infrared < 90) return 2;
+//   else if(infrared > 60 && infrared <= 400) return 3;
+//   else return 5;
+// }
+
+// con score e forse confidenza
+// il punteggio non deve andare sotto 0 o sopra 1, in questi casi si deve saturare agli estremi
+
+int score_classification(unsigned short infrared, unsigned short optical, bool inductive) {
+// chat "Miglioramenti progetto Arduino" e "Formula per classificazione materiali", devo usare la gaussiana linearizzata e pesare ogni sensore nella formula per ogni materiale
+  
+}
+
+int response_analysis(unsigned short infrared, unsigned short optical, bool inductive) {
+  if(optical > 0.95 * max_opt_sig) return 0;                        // nulla
+  usages++;
+  if(!inductive) return 1;                                          // metallo
+  else if(infrared > 0.7 * max_ir_sig) return 4;                    // vetro
+  // else if(optical <= 100 && infrared < 90) return 2;    // carta
+  // else if(infrared > 60 && infrared <= 400) return 3;   // plastica
+  else return score_classification(infrared, optical, inductive);   // carta / plastica
 }
 
 void setup() {
