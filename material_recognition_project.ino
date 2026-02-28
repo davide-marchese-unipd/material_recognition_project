@@ -10,6 +10,23 @@
 
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 
+//si usa per la normalizzazione nello score (formule in foto telefono)
+struct material
+{
+    unsigned short opt_mean;
+    unsigned short opt_range;
+    unsigned short ir_mean;
+    unsigned short ir_range;
+    float score;
+};
+
+
+material materials_data[] = {
+  {38, 49, 66, 9, 0.0},                     // carta
+  {564, 573, 163, 173, 0.0},                // plastica
+  {406, 504, 752, 232, 0.0}                 // vetro
+};
+
 unsigned short opt_sig = 0;
 unsigned short min_opt_sig = 0;
 unsigned short max_opt_sig = 0;
@@ -17,7 +34,6 @@ unsigned short ir_sig = 0;
 unsigned short min_ir_sig = 0;
 unsigned short max_ir_sig = 0;
 bool ind_sig = 0;
-
 
 unsigned int usages = 0;
 char materials[][17] = {
@@ -28,20 +44,6 @@ char materials[][17] = {
   "vetro",
   "indefinito"
 };
-
-//si usa per la normalizzazione nello score (formule in foto telefono)
-struct material
-{
-    unsigned short optical_mean;
-    unsigned short optical_range;
-    unsigned short ir_mean;
-    unsigned short ir_range;
-    float score;
-};
-
-material paper = {38, 49, 66, 9, 0.0};
-material plastic = {564, 573, 163, 173, 0.0};
-material glass = {406, 504, 752, 232, 0.0};
 
 unsigned short readAverage(int pin) {
   int sum = 0;
@@ -64,7 +66,7 @@ void initialization() {
   /*
     chiudi vano
   */
-  max_ir_sig = readAverage(IR); // <- porre attenzione al fatto che il valore per il vetro risulterà non normalizzato dato che sarà superiore al valore massimo teorico
+  max_ir_sig = readAverage(IR); // <- porre attenzione al fatto che il valore per il vetro risulterà non normalizzato dato che sarà superiore al valore massimo teorico, va saturato
   digitalWrite(LASER, LOW);
   delay(100);
   min_opt_sig = readAverage(LDR);
@@ -122,19 +124,51 @@ void LCD_init() {
 // con score e forse confidenza
 // il punteggio non deve andare sotto 0 o sopra 1, in questi casi si deve saturare agli estremi
 
-int score_classification(unsigned short infrared, unsigned short optical, bool inductive) {
+float compute_score(float value, float mean, float range) {
+    float distance = fabs(value - mean);
+    if(distance >= range)
+        return 0.0;
+    return 1.0 - (distance / range);
+}
+
+int score_classification(unsigned short infrared, unsigned short optical) {
 // chat "Miglioramenti progetto Arduino" e "Formula per classificazione materiali", devo usare la gaussiana linearizzata e pesare ogni sensore nella formula per ogni materiale
+
+  // con sensori non pesati
   
+  for(int i = 0; i < 3; i++) {
+    materials_data[i].score = compute_score(infrared, materials_data[i].ir_mean, materials_data[i].ir_range);
+    materials_data[i].score += compute_score(optical, materials_data[i].opt_mean, materials_data[i].opt_range);
+    materials_data[i].score /= 2;
+  }
+
+  if(materials_data[0].score > materials_data[1].score && materials_data[0].score > materials_data[2].score) {
+    Serial.print("score: ");
+    Serial.println(materials_data[0].score);
+    return 2;
+  }      // carta
+  else if(materials_data[1].score > materials_data[0].score && materials_data[1].score > materials_data[2].score) {
+    Serial.print("score: ");
+    Serial.println(materials_data[1].score);
+    return 3;
+  } // plastica
+  else if(materials_data[2].score > materials_data[1].score && materials_data[2].score > materials_data[0].score) {
+    Serial.print("score: ");
+    Serial.println(materials_data[2].score);
+    return 4;
+  } // vetro
+
+  // provare a compattare le 3 righe precedenti in un ciclo
+
+  return 5;                                                                                                                 // non identificato
 }
 
 int response_analysis(unsigned short infrared, unsigned short optical, bool inductive) {
-  if(optical > 0.95 * max_opt_sig) return 0;                        // nulla
+  if(optical > 0.95 * max_opt_sig) return 0;                        // nulla, vedere se usare anche infrarosso
   usages++;
   if(!inductive) return 1;                                          // metallo
-  else if(infrared > 0.7 * max_ir_sig) return 4;                    // vetro
-  // else if(optical <= 100 && infrared < 90) return 2;    // carta
-  // else if(infrared > 60 && infrared <= 400) return 3;   // plastica
-  else return score_classification(infrared, optical, inductive);   // carta / plastica
+  // else if(infrared > 0.7 * max_ir_sig) return 4;                    // vetro
+  else return score_classification(infrared, optical);   // carta / plastica / vetro
 }
 
 void setup() {
@@ -155,7 +189,16 @@ void loop() {
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("inserire oggetto");
+
+  /*
+    apri vano
+  */
+
   delay(5000);
+
+  /*
+    chiudi vano
+  */
 
   ir_sig = readAverage(IR);
   delay(100);
