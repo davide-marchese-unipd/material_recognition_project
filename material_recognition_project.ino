@@ -3,16 +3,33 @@
 #define LASER 7
 #define IR A0
 #define LDR A7
+#define UPPER_SERVO 8
+#define LOWER_SERVO 9
+#define CENTRAL_SERVO 10
+#define LEFT_SERVO 11
+#define RIGHT_SERVO 12
 
 #define LCD_ADDR 0x27
 
 #include <LiquidCrystal_I2C.h>
+#include <Servo.h>
+
+Servo u_servo;
+Servo d_servo;
+Servo c_servo;
+Servo l_servo;
+Servo r_servo;
+
+unsigned short u_servo_rest = 1;
+unsigned short d_servo_rest = 123;
+unsigned short c_servo_rest = 90;
+unsigned short l_servo_rest = 90;
+unsigned short r_servo_rest = 90;
 
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 
 //si usa per la normalizzazione nello score (formule in foto telefono)
-struct material
-{
+struct material {
     unsigned short opt_mean;
     unsigned short opt_range;
     unsigned short ir_mean;
@@ -62,11 +79,24 @@ void print_msg(char str[][17]) {
   lcd.print(str[1]);
 }
 
+void servo_reset() {
+  for (int pos = 15; pos <= d_servo_rest; pos += 1) {
+    d_servo.write(pos);
+  }
+}
+
+void servo_move(unsigned short rec_mat) {
+  for (int pos = d_servo_rest; pos > 15; pos -= 1) {
+    l_servo.write(pos);
+  }
+}
+
 void initialization() {
   /*
     chiudi vano
   */
-  max_ir_sig = readAverage(IR); // <- porre attenzione al fatto che il valore per il vetro risulterà non normalizzato dato che sarà superiore al valore massimo teorico, va saturato
+  servo_reset();
+  max_ir_sig = readAverage(IR);
   digitalWrite(LASER, LOW);
   delay(100);
   min_opt_sig = readAverage(LDR);
@@ -109,21 +139,6 @@ void LCD_init() {
   lcd.setCursor(0, 0);
 }
 
-
-// int response_analysis(unsigned short infrared, unsigned short optical, bool inductive) {
-//   if(optical > 0.95 * max_opt_sig) return 0;
-//   usages++;
-//   if(!inductive) return 1;
-
-//   else if(infrared > 0.7 * max_ir_sig) return 4;
-//   else if(optical <= 100 && infrared < 90) return 2;
-//   else if(infrared > 60 && infrared <= 400) return 3;
-//   else return 5;
-// }
-
-// con score e forse confidenza
-// il punteggio non deve andare sotto 0 o sopra 1, in questi casi si deve saturare agli estremi
-
 float compute_score(float value, float mean, float range) {
     float distance = fabs(value - mean);
     if(distance >= range)
@@ -131,11 +146,8 @@ float compute_score(float value, float mean, float range) {
     return 1.0 - (distance / range);
 }
 
-int score_classification(unsigned short infrared, unsigned short optical) {
 // chat "Miglioramenti progetto Arduino" e "Formula per classificazione materiali", devo usare la gaussiana linearizzata e pesare ogni sensore nella formula per ogni materiale
-
-  // con sensori non pesati
-  
+int score_classification(unsigned short infrared, unsigned short optical) {
   for(int i = 0; i < 3; i++) {
     materials_data[i].score = compute_score(infrared, materials_data[i].ir_mean, materials_data[i].ir_range);
     materials_data[i].score += compute_score(optical, materials_data[i].opt_mean, materials_data[i].opt_range);
@@ -158,16 +170,13 @@ int score_classification(unsigned short infrared, unsigned short optical) {
     return 4;
   } // vetro
 
-  // provare a compattare le 3 righe precedenti in un ciclo
-
-  return 5;                                                                                                                 // non identificato
+  return 5; // non identificato
 }
 
 int response_analysis(unsigned short infrared, unsigned short optical, bool inductive) {
   if(optical > 0.95 * max_opt_sig) return 0;                        // nulla, vedere se usare anche infrarosso
   usages++;
   if(!inductive) return 1;                                          // metallo
-  // else if(infrared > 0.7 * max_ir_sig) return 4;                    // vetro
   else return score_classification(infrared, optical);   // carta / plastica / vetro
 }
 
@@ -175,6 +184,11 @@ void setup() {
   pinMode(LASER, OUTPUT);
   pinMode(IND, INPUT);
   pinMode(PROX, INPUT);
+  u_servo.attach(UPPER_SERVO);
+  d_servo.attach(LOWER_SERVO);
+  c_servo.attach(CENTRAL_SERVO);
+  l_servo.attach(LEFT_SERVO);
+  r_servo.attach(RIGHT_SERVO);
   Serial.begin(9600);
   initialization();
   Serial.println(min_opt_sig);
@@ -211,6 +225,10 @@ void loop() {
 
   int dec = response_analysis(ir_sig, opt_sig, ind_sig);
 
+  /**/
+  servo_move(dec);
+  /**/
+
   // char msg[17] = {"riconosciuto:", *materials[dec]};
   // print_msg(msg);
 
@@ -234,4 +252,5 @@ void loop() {
   */
 
   delay(5000);
+  servo_reset();
 }
