@@ -20,7 +20,7 @@ Servo c_servo;
 Servo l_servo;
 Servo r_servo;
 
-unsigned short u_servo_rest = 1;
+unsigned short u_servo_rest = 5;
 unsigned short d_servo_rest = 123;
 unsigned short c_servo_rest = 90;
 unsigned short l_servo_rest = 90;
@@ -80,14 +80,11 @@ void print_msg(char str[][17]) {
 }
 
 void servo_reset() {
-  for (int pos = 15; pos <= d_servo_rest; pos += 1) {
-    d_servo.write(pos);
+  for (int pos = 90; pos >= u_servo_rest; pos -= 1) {
+    u_servo.write(pos);
   }
-}
-
-void servo_move(unsigned short rec_mat) {
-  for (int pos = d_servo_rest; pos > 15; pos -= 1) {
-    l_servo.write(pos);
+  for (int pos = 20; pos <= d_servo_rest; pos += 1) {
+    d_servo.write(pos);
   }
 }
 
@@ -207,12 +204,18 @@ void loop() {
   /*
     apri vano
   */
+  for (int pos = u_servo_rest; pos <= 90; pos += 1) {
+    u_servo.write(pos);
+  }
 
   delay(5000);
 
   /*
     chiudi vano
   */
+  for (int pos = 90; pos >= u_servo_rest; pos -= 1) {
+    u_servo.write(pos);
+  }
 
   ir_sig = readAverage(IR);
   delay(100);
@@ -225,9 +228,9 @@ void loop() {
 
   int dec = response_analysis(ir_sig, opt_sig, ind_sig);
 
-  /**/
-  servo_move(dec);
-  /**/
+  for (int pos = d_servo_rest; pos > 20; pos -= 1) {
+    d_servo.write(pos);
+  }
 
   // char msg[17] = {"riconosciuto:", *materials[dec]};
   // print_msg(msg);
@@ -246,11 +249,12 @@ void loop() {
   Serial.print(ind_sig);
   Serial.print("\tclass: ");
   Serial.println(materials[dec]);
+  // reimposta i pannelli
+  servo_reset();
 
   /*
     muovi pannelli
   */
 
   delay(5000);
-  servo_reset();
 }
