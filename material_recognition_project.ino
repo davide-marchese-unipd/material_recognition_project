@@ -21,14 +21,13 @@ Servo l_servo;
 Servo r_servo;
 
 unsigned short u_servo_rest = 5;
-unsigned short d_servo_rest = 123;
-unsigned short c_servo_rest = 90;
-unsigned short l_servo_rest = 90;
-unsigned short r_servo_rest = 90;
+unsigned short d_servo_rest = 80;
+unsigned short c_servo_rest = 95;
+unsigned short l_servo_rest = 95;
+unsigned short r_servo_rest = 100;
 
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 
-//si usa per la normalizzazione nello score (formule in foto telefono)
 struct material {
     unsigned short opt_mean;
     unsigned short opt_range;
@@ -62,6 +61,7 @@ char materials[][17] = {
   "indefinito"
 };
 
+//
 unsigned short readAverage(int pin) {
   int sum = 0;
   for(int i=0; i<20; i++) {
@@ -80,19 +80,59 @@ void print_msg(char str[][17]) {
 }
 
 void servo_reset() {
-  for (int pos = 90; pos >= u_servo_rest; pos -= 1) {
-    u_servo.write(pos);
+  for(int i = u_servo_rest + 10; i > u_servo_rest; i--) {
+    u_servo.write(i);
+    delay(15);
   }
-  for (int pos = 20; pos <= d_servo_rest; pos += 1) {
-    d_servo.write(pos);
+  for(int i = c_servo_rest - 10; i < c_servo_rest; i++) {
+    c_servo.write(i);
+    delay(15);
+  }
+  for(int i = l_servo_rest - 10; i < l_servo_rest; i++) {
+    l_servo.write(i);
+    delay(15);
+  }
+  for(int i = r_servo_rest - 10; i < r_servo_rest; i++) {
+    r_servo.write(i);
+    delay(15);
   }
 }
 
+void servo_move(int decision) {
+  for(int i = 90; i >= 0; i--) {
+    d_servo.write(i);
+    delay(10);
+  }
+  for(int i = 0; i <= 90; i++) {
+    d_servo.write(i);
+    delay(10);
+  }
+  switch(decision) {
+    case 0:
+      break;
+    case 1:
+      for(int i = l_servo_rest; i <= 110; i++) l_servo.write(i);
+      for(int i = c_servo_rest; i <= 120; i++) c_servo.write(i);
+      break;
+    case 2:
+      for(int i = r_servo_rest; i <= 180; i++) r_servo.write(i);
+      for(int i = c_servo_rest; i >= 35; i--) c_servo.write(i);
+      break;
+    case 3:
+      for(int i = l_servo_rest; i >= 15; i--) l_servo.write(i);
+      for(int i = c_servo_rest; i <= 160; i++) c_servo.write(i);
+      break;
+    case 4:
+      for(int i = r_servo_rest; i >= 80; i--) r_servo.write(i);
+      for(int i = c_servo_rest; i >= 70; i--) c_servo.write(i);
+      break;
+  }
+  delay(50);
+}
+
+//
 void initialization() {
-  /*
-    chiudi vano
-  */
-  servo_reset();
+  LCD_init();
   max_ir_sig = readAverage(IR);
   digitalWrite(LASER, LOW);
   delay(100);
@@ -103,10 +143,8 @@ void initialization() {
   digitalWrite(LASER, LOW);
 }
 
+//
 void waiting() {
-
-  // aggiungere il numero di riconoscimenti per categoria tra i messaggi che scorrono
-
   long long last_time = millis();
   bool swtch = false;
   char msg1[][17] = {"avvicina la mano", "per iniziare"};
@@ -125,10 +163,12 @@ void waiting() {
   }
 }
 
+//
 unsigned short normalize(unsigned short sig, unsigned short min_sig, unsigned short max_sig) {
   return (sig - min_sig) / (max_sig - min_sig);
 }
 
+//
 void LCD_init() {
   lcd.begin();
   lcd.backlight();
@@ -136,6 +176,7 @@ void LCD_init() {
   lcd.setCursor(0, 0);
 }
 
+//
 float compute_score(float value, float mean, float range) {
     float distance = fabs(value - mean);
     if(distance >= range)
@@ -143,41 +184,39 @@ float compute_score(float value, float mean, float range) {
     return 1.0 - (distance / range);
 }
 
-// chat "Miglioramenti progetto Arduino" e "Formula per classificazione materiali", devo usare la gaussiana linearizzata e pesare ogni sensore nella formula per ogni materiale
+//
 int score_classification(unsigned short infrared, unsigned short optical) {
-  for(int i = 0; i < 3; i++) {
+  for(int i = 0; i < 2; i++) {
     materials_data[i].score = compute_score(infrared, materials_data[i].ir_mean, materials_data[i].ir_range);
     materials_data[i].score += compute_score(optical, materials_data[i].opt_mean, materials_data[i].opt_range);
     materials_data[i].score /= 2;
   }
 
-  if(materials_data[0].score > materials_data[1].score && materials_data[0].score > materials_data[2].score) {
+  if(materials_data[0].score > materials_data[1].score) {
     Serial.print("score: ");
     Serial.println(materials_data[0].score);
     return 2;
   }      // carta
-  else if(materials_data[1].score > materials_data[0].score && materials_data[1].score > materials_data[2].score) {
+  else if(materials_data[1].score > materials_data[0].score) {
     Serial.print("score: ");
     Serial.println(materials_data[1].score);
     return 3;
   } // plastica
-  else if(materials_data[2].score > materials_data[1].score && materials_data[2].score > materials_data[0].score) {
-    Serial.print("score: ");
-    Serial.println(materials_data[2].score);
-    return 4;
-  } // vetro
 
   return 5; // non identificato
 }
 
+//
 int response_analysis(unsigned short infrared, unsigned short optical, bool inductive) {
-  if(optical > 0.95 * max_opt_sig) return 0;                        // nulla, vedere se usare anche infrarosso
+  if(optical > 0.95 * max_opt_sig && infrared > 0.95 * max_ir_sig) return 0;                        // nulla
   usages++;
   if(!inductive) return 1;                                          // metallo
-  else return score_classification(infrared, optical);   // carta / plastica / vetro
+  if(infrared > 0.7 * max_ir_sig) return 4;              //vetro
+  else return score_classification(infrared, optical);   // carta / plastica
 }
 
 void setup() {
+  Serial.begin(9600);
   pinMode(LASER, OUTPUT);
   pinMode(IND, INPUT);
   pinMode(PROX, INPUT);
@@ -186,36 +225,25 @@ void setup() {
   c_servo.attach(CENTRAL_SERVO);
   l_servo.attach(LEFT_SERVO);
   r_servo.attach(RIGHT_SERVO);
-  Serial.begin(9600);
   initialization();
   Serial.println(min_opt_sig);
   Serial.println(max_opt_sig);
   Serial.println(min_ir_sig);
   Serial.println(max_ir_sig);
-  LCD_init();
+  servo_reset();
 }
 
 void loop() {
   waiting();
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("inserire oggetto");
+  
+  u_servo.write(90);
 
-  /*
-    apri vano
-  */
-  for (int pos = u_servo_rest; pos <= 90; pos += 1) {
-    u_servo.write(pos);
-  }
+  char insert[][17] = {"inserire oggetto", ""};
+  print_msg(insert);
+  delay(10000);
+  u_servo.write(u_servo_rest);
 
-  delay(5000);
-
-  /*
-    chiudi vano
-  */
-  for (int pos = 90; pos >= u_servo_rest; pos -= 1) {
-    u_servo.write(pos);
-  }
+  delay(500);
 
   ir_sig = readAverage(IR);
   delay(100);
@@ -228,18 +256,13 @@ void loop() {
 
   int dec = response_analysis(ir_sig, opt_sig, ind_sig);
 
-  for (int pos = d_servo_rest; pos > 20; pos -= 1) {
-    d_servo.write(pos);
-  }
-
-  // char msg[17] = {"riconosciuto:", *materials[dec]};
-  // print_msg(msg);
-
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("riconosciuto:");
   lcd.setCursor(0, 1);
   lcd.print(materials[dec]);
+  
+  servo_move(dec);
 
   Serial.print("LDR: ");
   Serial.print(opt_sig);
@@ -249,12 +272,8 @@ void loop() {
   Serial.print(ind_sig);
   Serial.print("\tclass: ");
   Serial.println(materials[dec]);
-  // reimposta i pannelli
+
+  delay(2500);
   servo_reset();
-
-  /*
-    muovi pannelli
-  */
-
-  delay(5000);
+  delay(2500);
 }
