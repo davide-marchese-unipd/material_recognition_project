@@ -1,3 +1,7 @@
+/**
+  * \file material_recognition_project.ino
+*/
+
 #define IND 2
 #define PROX 3
 #define LASER 7
@@ -28,19 +32,24 @@ unsigned short r_servo_rest = 100;
 
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 
+
+/**
+  * \brief struttura descrittiva utilizzata nella classificazione per score
+*/
 struct material {
-    unsigned short opt_mean;
-    unsigned short opt_range;
-    unsigned short ir_mean;
-    unsigned short ir_range;
-    float score;
+    unsigned short opt_mean;    ///< centro della distribuzione del segnale ottico per il materiale
+    unsigned short opt_range;   ///< ampiezza dell'intervallo di valori del segnale ottico per il materiale
+    unsigned short ir_mean;     ///< centro della distribuzione del segnale infrarossi per il materiale
+    unsigned short ir_range;    ///< ampiezza dell'intervallo di valori del segnale infrarossi per il materiale
+    float score;                ///< score assegnabile al materiale
 };
 
-
+/**
+  * \brief implementazione struttura dati per carta e plastica
+*/
 material materials_data[] = {
-  {38, 49, 66, 9, 0.0},                     // carta
-  {564, 573, 163, 173, 0.0},                // plastica
-  {406, 504, 752, 232, 0.0}                 // vetro
+  {38, 49, 66, 9, 0.0},
+  {564, 573, 163, 173, 0.0}
 };
 
 unsigned short opt_sig = 0;
@@ -61,7 +70,11 @@ char materials[][17] = {
   "indefinito"
 };
 
-//
+/**
+  * \brief calcola la media aritmetica di più misurazioni successive effettuate dal sensore sul materiale
+  * \param pin pin del sensore preso in considerazione
+  * \return media aritmetica delle misurazioni
+*/
 unsigned short readAverage(int pin) {
   int sum = 0;
   for(int i=0; i<20; i++) {
@@ -71,6 +84,10 @@ unsigned short readAverage(int pin) {
   return sum / 20;
 }
 
+/**
+  * \brief stampa a schermo del messaggio
+  * \param str array delle righe da stampare
+*/
 void print_msg(char str[][17]) {
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -79,6 +96,9 @@ void print_msg(char str[][17]) {
   lcd.print(str[1]);
 }
 
+/**
+  * \brief reset dei servomotori alla loro posizione di riposo
+*/
 void servo_reset() {
   for(int i = u_servo_rest + 10; i > u_servo_rest; i--) {
     u_servo.write(i);
@@ -98,7 +118,11 @@ void servo_reset() {
   }
 }
 
-void servo_move(int decision) {
+/**
+  * \brief movimento dei servomotori per l'inserimento del materiale nello scompartimento apposito
+  * \param recognized_material materiale riconosciuto dal classificatore
+*/
+void servo_move(int recognized_material) {
   for(int i = 90; i >= 0; i--) {
     d_servo.write(i);
     delay(10);
@@ -107,7 +131,7 @@ void servo_move(int decision) {
     d_servo.write(i);
     delay(10);
   }
-  switch(decision) {
+  switch(recognized_material) {
     case 0:
       break;
     case 1:
@@ -130,8 +154,11 @@ void servo_move(int decision) {
   delay(50);
 }
 
-//
+/**
+  * \brief inizializzazione di servomotori e schermo; inizializzazione e calibrazione dei sensori
+*/
 void initialization() {
+  servo_reset();
   LCD_init();
   max_ir_sig = readAverage(IR);
   digitalWrite(LASER, LOW);
@@ -143,7 +170,9 @@ void initialization() {
   digitalWrite(LASER, LOW);
 }
 
-//
+/**
+  * \brief attesa di richieste di riconoscimento con stampe a schermo di messaggi
+*/
 void waiting() {
   long long last_time = millis();
   bool swtch = false;
@@ -163,12 +192,6 @@ void waiting() {
   }
 }
 
-//
-unsigned short normalize(unsigned short sig, unsigned short min_sig, unsigned short max_sig) {
-  return (sig - min_sig) / (max_sig - min_sig);
-}
-
-//
 void LCD_init() {
   lcd.begin();
   lcd.backlight();
@@ -176,7 +199,13 @@ void LCD_init() {
   lcd.setCursor(0, 0);
 }
 
-//
+/**
+  * \brief calcolo dello score ottenuto dal materiale nella classificazione da parte di un singolo sensore
+  * \param value valore misurato dal sensore
+  * \param mean centro della distribuzione del segnale assegnata al sensore per ognuno dei candidati materiali classificabili con score
+  * \param range ampiezza dell'intervallo di valori che il segnale riscontrato dal sensore per il candidato materiale può assumere
+  * \return score normalizzato 
+*/
 float compute_score(float value, float mean, float range) {
     float distance = fabs(value - mean);
     if(distance >= range)
@@ -184,7 +213,12 @@ float compute_score(float value, float mean, float range) {
     return 1.0 - (distance / range);
 }
 
-//
+/**
+ * \brief classificazione per score del materiale tra carta e plastica
+ * \param infrared segnale rilevato dal sensore a infrarossi
+ * \param optical segnale rilevato dal sensore ottico
+ * \return classificazione del materiale per score
+*/
 int score_classification(unsigned short infrared, unsigned short optical) {
   for(int i = 0; i < 2; i++) {
     materials_data[i].score = compute_score(infrared, materials_data[i].ir_mean, materials_data[i].ir_range);
@@ -196,25 +230,25 @@ int score_classification(unsigned short infrared, unsigned short optical) {
     Serial.print("score: ");
     Serial.println(materials_data[0].score);
     return 2;
-  }      // carta
+  }
   else if(materials_data[1].score > materials_data[0].score) {
     Serial.print("score: ");
     Serial.println(materials_data[1].score);
     return 3;
-  } // plastica
+  }
 
-  return 5; // non identificato
+  return 5;
 }
 
 /**
- * @brief riconoscimento
- */
+ * \brief classificatore: usato per discriminare il materiale di cui è composto un oggetto tra metallo, vetro, carta o plastica; gli ultimi due sono discriminati tramite una classificazione per score, data la presenza di ambiguità tra questi due materiali
+*/
 int response_analysis(unsigned short infrared, unsigned short optical, bool inductive) {
-  if(optical > 0.95 * max_opt_sig && infrared > 0.95 * max_ir_sig) return 0;                        // nulla
+  if(optical > 0.95 * max_opt_sig && infrared > 0.95 * max_ir_sig) return 0;
   usages++;
-  if(!inductive) return 1;                                          // metallo
-  if(infrared > 0.7 * max_ir_sig) return 4;              //vetro
-  else return score_classification(infrared, optical);   // carta / plastica
+  if(!inductive) return 1;
+  if(infrared > 0.7 * max_ir_sig) return 4;
+  else return score_classification(infrared, optical);
 }
 
 void setup() {
@@ -232,7 +266,6 @@ void setup() {
   Serial.println(max_opt_sig);
   Serial.println(min_ir_sig);
   Serial.println(max_ir_sig);
-  servo_reset();
 }
 
 void loop() {
