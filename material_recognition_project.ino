@@ -123,6 +123,7 @@ void servo_reset() {
   * \param recognized_material materiale riconosciuto dal classificatore
 */
 void servo_move(int recognized_material) {
+  if(recognized_material == 5) return;
   for(int i = 90; i >= 0; i--) {
     d_servo.write(i);
     delay(10);
