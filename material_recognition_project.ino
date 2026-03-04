@@ -206,7 +206,9 @@ int score_classification(unsigned short infrared, unsigned short optical) {
   return 5; // non identificato
 }
 
-//
+/**
+ * @brief riconoscimento
+ */
 int response_analysis(unsigned short infrared, unsigned short optical, bool inductive) {
   if(optical > 0.95 * max_opt_sig && infrared > 0.95 * max_ir_sig) return 0;                        // nulla
   usages++;
